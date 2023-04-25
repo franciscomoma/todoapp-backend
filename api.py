@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+
 FILE_NAME = os.path.join('data', 'todo.json')
 
 app = FastAPI()
@@ -18,6 +19,36 @@ app = FastAPI()
 origins = [
     "*"
 ]
+
+ERROR_REPORTING_CLIENT = None
+LOGGING_CLIENT = None
+try:
+    from google.cloud import error_reporting, logging as cloud_logging
+    from google.cloud.logging_v2.handlers import CloudLoggingHandler
+
+    LOGGING_CLIENT = cloud_logging.Client(_use_grpc=False)
+    handler = CloudLoggingHandler(LOGGING_CLIENT)
+
+    cloud_logger = logging.getLogger('uvicorn.access')
+    cloud_logger.setLevel(logging.INFO)
+    cloud_logger.handlers = [handler]
+
+    ERROR_REPORTING_CLIENT = error_reporting.Client(service="todoapp-backend", _use_grpc=False)
+except Exception as e:
+    pass
+
+@app.middleware("http")
+async def error_logging(request: Request, call_next):
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        if ERROR_REPORTING_CLIENT:
+            ERROR_REPORTING_CLIENT.report_exception()
+
+        response = JSONResponse(content={"error": str(e)}, status_code=500)
+
+    return response
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -104,3 +135,4 @@ async def err() -> object:
     """
     """
     raise Exception("Error procesando la petición")
+
