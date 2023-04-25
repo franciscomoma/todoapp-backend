@@ -1,0 +1,4 @@
+fastapi==0.89.1
+uvicorn[standard]==0.20.0
+google-cloud-error-reporting==1.9.1
+google-cloud-logging==3.5.0
